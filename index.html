@@ -1,12 +1,396 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft PvP Bot</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>MACE PvP BOT</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #070b14;
+      color: white;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      margin: auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+    header h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: #8e9bb0;
+    }
+
+    .status {
+      background: #101827;
+      border: 1px solid #1d2a3d;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .status-title {
+      font-size: 20px;
+      margin-bottom: 15px;
+    }
+
+    .online {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #4ade80;
+      font-weight: bold;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      background: #ef4444;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .card {
+      background: #101827;
+      border: 1px solid #1d2a3d;
+      border-radius: 18px;
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 19px;
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      color: #9aa8bc;
+      margin-bottom: 7px;
+      font-size: 14px;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 13px;
+      margin-bottom: 15px;
+      border: 1px solid #29384e;
+      border-radius: 10px;
+      background: #080e19;
+      color: white;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #64748b;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    button {
+      border: none;
+      padding: 14px;
+      border-radius: 11px;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .start {
+      background: #16a34a;
+    }
+
+    .stop {
+      background: #dc2626;
+    }
+
+    .test {
+      background: #334155;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .log {
+      margin-top: 18px;
+      background: #050912;
+      border: 1px solid #1d2a3d;
+      border-radius: 14px;
+      padding: 15px;
+      height: 150px;
+      overflow-y: auto;
+      color: #94a3b8;
+      font-size: 13px;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 25px;
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    @media (max-width: 650px) {
+      body {
+        padding: 12px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      header h1 {
+        font-size: 26px;
+      }
+    }
+  </style>
 </head>
+
 <body>
-    <h1>⚔️ Minecraft PvP Bot</h1>
-    <p>حالة البوت: 🔴 Offline</p>
+
+  <div class="container">
+
+    <header>
+      <h1>⚔️ MACE PvP BOT</h1>
+      <p>لوحة التحكم بالبوت</p>
+    </header>
+
+    <div class="status">
+
+      <div class="status-title">
+        🤖 حالة البوت
+      </div>
+
+      <div class="online">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Offline</span>
+      </div>
+
+    </div>
+
+    <div class="grid">
+
+      <div class="card">
+
+        <h2>🎮 إعدادات السيرفر</h2>
+
+        <label>Server IP</label>
+        <input
+          id="serverIP"
+          type="text"
+          placeholder="play.example.com"
+        >
+
+        <label>Port</label>
+        <input
+          id="serverPort"
+          type="number"
+          placeholder="25565"
+          value="25565"
+        >
+
+        <label>Bot Username</label>
+        <input
+          id="botUsername"
+          type="text"
+          placeholder="MaceBot"
+        >
+
+      </div>
+
+      <div class="card">
+
+        <h2>⚔️ إعدادات PvP</h2>
+
+        <label>نوع القتال</label>
+
+        <select id="pvpMode">
+          <option value="sword">⚔️ Sword PvP</option>
+          <option value="mace">🔨 Mace PvP</option>
+          <option value="axe">🪓 Axe PvP</option>
+          <option value="crystal">💎 Crystal PvP</option>
+        </select>
+
+        <label>اسم الهدف</label>
+
+        <input
+          id="target"
+          type="text"
+          placeholder="PlayerName"
+        >
+
+      </div>
+
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+
+      <h2>🎛️ التحكم</h2>
+
+      <div class="buttons">
+
+        <button class="start" onclick="startBot()">
+          ▶️ تشغيل البوت
+        </button>
+
+        <button class="stop" onclick="stopBot()">
+          ⏹️ إيقاف البوت
+        </button>
+
+      </div>
+
+      <button class="test" onclick="testSettings()">
+        🧪 اختبار الإعدادات
+      </button>
+
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+
+      <h2>📜 Console</h2>
+
+      <div class="log" id="log">
+        [SYSTEM] Dashboard loaded...
+      </div>
+
+    </div>
+
+    <div class="footer">
+      MACE PvP BOT • Minecraft
+    </div>
+
+  </div>
+
+
+  <script>
+
+    function addLog(message) {
+
+      const log = document.getElementById("log");
+
+      const time = new Date().toLocaleTimeString();
+
+      log.innerHTML +=
+        "<br>[" + time + "] " + message;
+
+      log.scrollTop = log.scrollHeight;
+    }
+
+
+    function startBot() {
+
+      const ip =
+        document.getElementById("serverIP").value;
+
+      const port =
+        document.getElementById("serverPort").value;
+
+      const username =
+        document.getElementById("botUsername").value;
+
+      if (!ip || !username) {
+
+        addLog("ERROR: Server IP and Username are required.");
+
+        return;
+      }
+
+      document.getElementById("statusText").innerText =
+        "Starting...";
+
+      addLog(
+        "Starting bot → " +
+        username +
+        " @ " +
+        ip +
+        ":" +
+        port
+      );
+
+      /*
+        لاحقًا سنربط هذا بالـBackend
+        والبوت الحقيقي.
+      */
+    }
+
+
+    function stopBot() {
+
+      document.getElementById("statusText").innerText =
+        "Offline";
+
+      addLog("Bot stop requested.");
+
+      /*
+        لاحقًا سيتم إرسال الأمر إلى Backend.
+      */
+    }
+
+
+    function testSettings() {
+
+      const ip =
+        document.getElementById("serverIP").value;
+
+      const port =
+        document.getElementById("serverPort").value;
+
+      const username =
+        document.getElementById("botUsername").value;
+
+      const mode =
+        document.getElementById("pvpMode").value;
+
+      const target =
+        document.getElementById("target").value;
+
+      addLog("===== SETTINGS =====");
+      addLog("IP: " + (ip || "Not set"));
+      addLog("Port: " + port);
+      addLog("Username: " + (username || "Not set"));
+      addLog("Mode: " + mode);
+      addLog("Target: " + (target || "None"));
+      addLog("====================");
+    }
+
+  </script>
+
 </body>
 </html>
