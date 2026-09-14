@@ -2,10 +2,21 @@ const express = require("express");
 const mineflayer = require("mineflayer");
 
 const app = express();
+const PORT = process.env.PORT || 10000;
 
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 let bot = null;
 
@@ -16,21 +27,37 @@ let botInfo = {
   username: ""
 };
 
-let reconnectTimer = null;
+app.get("/", (req, res) => {
+  res.json({
+    name: "MACE PvP BOT",
+    status: botInfo.status
+  });
+});
 
-function startBot(host, port, username) {
+app.get("/status", (req, res) => {
+  res.json({
+    status: botInfo.status,
+    username: botInfo.username,
+    server: botInfo.host,
+    port: botInfo.port
+  });
+});
+
+app.post("/start", (req, res) => {
+  const { host, port, username } = req.body;
+
   if (bot) {
-    return {
+    return res.json({
       success: false,
       message: "Bot is already running."
-    };
+    });
   }
 
   if (!host || !username) {
-    return {
+    return res.json({
       success: false,
       message: "Server IP and bot username are required."
-    };
+    });
   }
 
   botInfo.host = host;
@@ -42,131 +69,85 @@ function startBot(host, port, username) {
     `Connecting ${username} to ${host}:${botInfo.port}`
   );
 
-  bot = mineflayer.createBot({
-    host: botInfo.host,
-    port: botInfo.port,
-    username: botInfo.username,
-    version: false
-  });
+  try {
+    bot = mineflayer.createBot({
+      host: botInfo.host,
+      port: botInfo.port,
+      username: botInfo.username,
+      version: false
+    });
 
-  bot.once("spawn", () => {
-    botInfo.status = "online";
+    bot.once("spawn", () => {
+      botInfo.status = "online";
 
-    console.log(
-      `Bot ${botInfo.username} joined ${botInfo.host}:${botInfo.port}`
-    );
-  });
+      console.log(
+        `Bot ${botInfo.username} joined ${botInfo.host}:${botInfo.port}`
+      );
+    });
 
-  bot.on("end", () => {
-    console.log("Bot disconnected.");
+    bot.on("end", () => {
+      console.log("Bot disconnected.");
 
-    botInfo.status = "offline";
+      botInfo.status = "offline";
+      bot = null;
+    });
+
+    bot.on("error", (error) => {
+      console.log("Minecraft error:", error.message);
+      botInfo.status = "error";
+    });
+
+    bot.on("kicked", (reason) => {
+      console.log("Bot kicked:", reason);
+      botInfo.status = "kicked";
+    });
+
+    return res.json({
+      success: true,
+      status: botInfo.status
+    });
+
+  } catch (error) {
+    console.log("Start error:", error.message);
+
     bot = null;
-  });
-
-  bot.on("error", (error) => {
-    console.log("Minecraft error:", error.message);
-
     botInfo.status = "error";
-  });
 
-  bot.on("kicked", (reason) => {
-    console.log("Bot kicked:", reason);
+    return res.json({
+      success: false,
+      status: "error",
+      message: error.message
+    });
+  }
+});
 
-    botInfo.status = "kicked";
-  });
-
-  return {
-    success: true,
-    status: botInfo.status
-  };
-}
-
-
-function stopBot() {
+app.post("/stop", (req, res) => {
   if (!bot) {
     botInfo.status = "offline";
 
-    return {
+    return res.json({
       success: true,
       status: "offline"
-    };
+    });
   }
 
   try {
     bot.quit("Stopped from website");
   } catch (error) {
-    console.log(error.message);
+    console.log("Stop error:", error.message);
   }
 
   bot = null;
   botInfo.status = "offline";
 
-  return {
+  res.json({
     success: true,
     status: "offline"
-  };
-}
-
-
-/* Homepage */
-
-app.get("/", (req, res) => {
-  res.json({
-    name: "MACE PvP BOT",
-    status: botInfo.status
   });
 });
 
-
-/* Bot status */
-
-app.get("/status", (req, res) => {
-  res.json({
-    status: botInfo.status,
-    username: botInfo.username,
-    server: botInfo.host,
-    port: botInfo.port
-  });
-});
-
-
-/* Start bot */
-
-app.post("/start", (req, res) => {
-
-  const {
-    host,
-    port,
-    username
-  } = req.body;
-
-  const result = startBot(
-    host,
-    port,
-    username
-  );
-
-  res.json(result);
-});
-
-
-/* Stop bot */
-
-app.post("/stop", (req, res) => {
-
-  const result = stopBot();
-
-  res.json(result);
-});
-
-
-/* Server */
-
-app.listen(PORT, () => {
-
+app.listen(PORT, "0.0.0.0", () => {
   console.log(
     `MACE PvP BOT API running on port ${PORT}`
   );
-
 });
