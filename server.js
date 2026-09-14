@@ -19,18 +19,47 @@ app.use((req, res, next) => {
 });
 
 let bot = null;
+let connectionTimer = null;
 
-let botInfo = {
+const botInfo = {
   status: "offline",
   host: "",
   port: 25565,
   username: "",
+  mode: "sword",
+  target: "",
   error: ""
 };
 
+function clearTimer() {
+  if (connectionTimer) {
+    clearTimeout(connectionTimer);
+    connectionTimer = null;
+  }
+}
+
+function stopBot() {
+  clearTimer();
+
+  if (bot) {
+    const oldBot = bot;
+    bot = null;
+
+    try {
+      oldBot.clearControlStates();
+    } catch (_) {}
+
+    try {
+      oldBot.end("Stopped");
+    } catch (_) {}
+  }
+
+  botInfo.status = "offline";
+}
+
 app.get("/", (req, res) => {
   res.json({
-    name: "MACE PvP BOT",
+    name: "AIZEN BOT",
     status: botInfo.status
   });
 });
@@ -41,95 +70,206 @@ app.get("/status", (req, res) => {
     username: botInfo.username,
     server: botInfo.host,
     port: botInfo.port,
+    mode: botInfo.mode,
+    target: botInfo.target,
     error: botInfo.error
   });
 });
 
 app.post("/start", (req, res) => {
-  const { host, port, username } = req.body;
+  const host = String(req.body.host || "").trim();
+  const username = String(req.body.username || "").trim();
 
-  if (bot) {
+  const port =
+    Number(req.body.port) || 25565;
+
+  const mode =
+    String(req.body.mode || "sword");
+
+  const target =
+    String(req.body.target || "").trim();
+
+  if (!host) {
     return res.json({
       success: false,
-      message: "Bot is already running."
+      message: "Server IP is required."
     });
   }
 
-  if (!host || !username) {
+  if (!username) {
     return res.json({
       success: false,
-      message: "Server IP and bot username are required."
+      message: "Bot Username is required."
     });
+  }
+
+  if (bot) {
+    console.log("Stopping old bot...");
+    stopBot();
   }
 
   botInfo.host = host;
-  botInfo.port = Number(port) || 25565;
+  botInfo.port = port;
   botInfo.username = username;
+  botInfo.mode = mode;
+  botInfo.target = target;
   botInfo.status = "connecting";
   botInfo.error = "";
 
   console.log(
-    `Connecting ${username} to ${host}:${botInfo.port}`
+    `CONNECTING: ${username} -> ${host}:${port}`
   );
 
   try {
-    bot = mineflayer.createBot({
+    const newBot = mineflayer.createBot({
       host: host,
-      port: Number(port) || 25565,
+      port: port,
       username: username,
-      version: false,
+
+      // للسيرفرات Cracked / Offline
       auth: "offline",
-      connectTimeout: 30000
+
+      // اكتشاف إصدار السيرفر
+      version: false,
+
+      // مهلة الاتصال
+      connectTimeout: 60000
     });
 
-    bot.on("login", () => {
-      console.log("Minecraft login packet received.");
-    });
+    bot = newBot;
 
-    bot.once("spawn", () => {
-      botInfo.status = "online";
+    connectionTimer = setTimeout(() => {
+      if (
+        bot === newBot &&
+        botInfo.status === "connecting"
+      ) {
+        console.log(
+          "CONNECTION TIMEOUT"
+        );
 
+        botInfo.status = "timeout";
+        botInfo.error =
+          "Connection timeout after 60 seconds.";
+
+        try {
+          newBot.end(
+            "Connection timeout"
+          );
+        } catch (_) {}
+
+        bot = null;
+      }
+    }, 60000);
+
+    newBot.on("login", () => {
       console.log(
-        `BOT ONLINE: ${botInfo.username} joined ${botInfo.host}:${botInfo.port}`
+        "LOGIN: Minecraft login received"
       );
     });
 
-    bot.on("message", (message) => {
-      console.log("SERVER:", message.toString());
+    newBot.once("spawn", () => {
+      clearTimer();
+
+      if (bot !== newBot) {
+        return;
+      }
+
+      botInfo.status = "online";
+      botInfo.error = "";
+
+      console.log(
+        `ONLINE: ${username} joined ${host}:${port}`
+      );
+
+      console.log(
+        `MODE: ${mode}`
+      );
+
+      console.log(
+        `TARGET: ${target || "none"}`
+      );
     });
 
-    bot.on("end", (reason) => {
-      console.log("Bot disconnected:", reason || "unknown");
-
-      botInfo.status = "offline";
-      botInfo.error = String(reason || "");
-
-      bot = null;
+    newBot.on("message", (message) => {
+      console.log(
+        "SERVER:",
+        message.toString()
+      );
     });
 
-    bot.on("error", (error) => {
-      console.log("MINECRAFT ERROR:", error);
+    newBot.on("kicked", (reason) => {
+      clearTimer();
 
-      botInfo.status = "error";
-      botInfo.error = error.message || String(error);
+      console.log(
+        "KICKED:",
+        reason
+      );
+
+      if (bot === newBot) {
+        botInfo.status = "kicked";
+
+        botInfo.error =
+          typeof reason === "string"
+            ? reason
+            : JSON.stringify(reason);
+
+        bot = null;
+      }
     });
 
-    bot.on("kicked", (reason) => {
-      console.log("BOT KICKED:", reason);
+    newBot.on("error", (error) => {
+      clearTimer();
 
-      botInfo.status = "kicked";
-      botInfo.error = String(reason);
+      console.log(
+        "MINECRAFT ERROR:",
+        error.message
+      );
+
+      if (bot === newBot) {
+        botInfo.status = "error";
+        botInfo.error =
+          error.message || String(error);
+      }
+    });
+
+    newBot.on("end", (reason) => {
+      clearTimer();
+
+      console.log(
+        "DISCONNECTED:",
+        reason || "unknown"
+      );
+
+      if (bot === newBot) {
+        botInfo.status = "offline";
+
+        botInfo.error =
+          reason ? String(reason) : "";
+
+        bot = null;
+      }
     });
 
     return res.json({
       success: true,
-      status: "connecting"
+      status: "connecting",
+      username: username,
+      server: host,
+      port: port,
+      mode: mode,
+      target: target
     });
 
   } catch (error) {
-    console.log("START ERROR:", error);
+    clearTimer();
+
+    console.log(
+      "START ERROR:",
+      error.message
+    );
 
     bot = null;
+
     botInfo.status = "error";
     botInfo.error = error.message;
 
@@ -142,32 +282,22 @@ app.post("/start", (req, res) => {
 });
 
 app.post("/stop", (req, res) => {
-  if (!bot) {
-    botInfo.status = "offline";
+  console.log("STOP REQUEST");
 
-    return res.json({
-      success: true,
-      status: "offline"
-    });
-  }
+  stopBot();
 
-  try {
-    bot.quit("Stopped from website");
-  } catch (error) {
-    console.log("Stop error:", error.message);
-  }
-
-  bot = null;
-  botInfo.status = "offline";
-
-  return res.json({
+  res.json({
     success: true,
     status: "offline"
   });
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `MACE PvP BOT API running on port ${PORT}`
-  );
-});
+app.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `AIZEN BOT API running on port ${PORT}`
+    );
+  }
+);
