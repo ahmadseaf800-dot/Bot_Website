@@ -19,9 +19,9 @@ app.use((req, res, next) => {
 });
 
 let bot = null;
-let pvpLoop = null;
+let connectionTimer = null;
 
-let botInfo = {
+const botInfo = {
   status: "offline",
   host: "",
   port: 25565,
@@ -31,73 +31,27 @@ let botInfo = {
   error: ""
 };
 
-function stopCurrentBot() {
-  if (pvpLoop) {
-    clearInterval(pvpLoop);
-    pvpLoop = null;
+function clearConnectionTimer() {
+  if (connectionTimer) {
+    clearTimeout(connectionTimer);
+    connectionTimer = null;
   }
+}
+
+function stopBot() {
+  clearConnectionTimer();
 
   if (bot) {
     try {
-      bot.quit("Replacing bot");
-    } catch (error) {
-      console.log("Quit error:", error.message);
+      bot.removeAllListeners();
+      bot.quit("Bot replaced/stopped");
+    } catch (err) {
+      console.log("Stop error:", err.message);
     }
   }
 
   bot = null;
   botInfo.status = "offline";
-}
-
-function startPvP() {
-  if (!bot) return;
-
-  if (pvpLoop) {
-    clearInterval(pvpLoop);
-  }
-
-  pvpLoop = setInterval(async () => {
-    if (!bot) return;
-    if (botInfo.status !== "online") return;
-    if (!botInfo.target) return;
-
-    const target = bot.players[botInfo.target];
-
-    if (!target || !target.entity) {
-      return;
-    }
-
-    const entity = target.entity;
-
-    try {
-      await bot.lookAt(entity.position.offset(0, 1, 0), true);
-
-      const distance = bot.entity.position.distanceTo(entity.position);
-
-      if (distance <= 4) {
-        bot.attack(entity);
-      } else if (distance <= 12) {
-        const direction = entity.position
-          .minus(bot.entity.position)
-          .normalize();
-
-        const movement = bot.entity.position
-          .plus(direction.scaled(0.5));
-
-        bot.lookAt(entity.position.offset(0, 1, 0), true);
-
-        bot.setControlState("forward", true);
-
-        setTimeout(() => {
-          if (bot) {
-            bot.setControlState("forward", false);
-          }
-        }, 250);
-      }
-    } catch (error) {
-      console.log("PvP error:", error.message);
-    }
-  }, 350);
 }
 
 app.get("/", (req, res) => {
@@ -121,128 +75,150 @@ app.get("/status", (req, res) => {
 });
 
 app.post("/start", (req, res) => {
-  const {
-    host,
-    port,
-    username,
-    mode,
-    target
-  } = req.body;
+  const host = String(req.body.host || "").trim();
+  const username = String(req.body.username || "").trim();
+  const port = Number(req.body.port) || 25565;
+  const mode = String(req.body.mode || "sword");
+  const target = String(req.body.target || "").trim();
 
   if (!host || !username) {
     return res.json({
       success: false,
-      message: "Server IP and bot username are required."
+      message: "Server IP and Bot Username are required."
     });
   }
 
-  // إذا كان هناك بوت، نخرجه ونستبدله بالجديد
+  // إذا يوجد بوت حالي، أوقفه أولاً
   if (bot) {
-    console.log("Replacing current bot...");
-    stopCurrentBot();
+    console.log("Stopping old bot before starting new bot...");
+    stopBot();
   }
 
   botInfo.host = host;
-  botInfo.port = Number(port) || 25565;
+  botInfo.port = port;
   botInfo.username = username;
-  botInfo.mode = mode || "sword";
-  botInfo.target = target || "";
+  botInfo.mode = mode;
+  botInfo.target = target;
   botInfo.status = "connecting";
   botInfo.error = "";
 
   console.log(
-    `Connecting ${username} to ${host}:${botInfo.port}`
+    `CONNECTING: ${username} -> ${host}:${port}`
   );
 
   try {
-    bot = mineflayer.createBot({
+    const newBot = mineflayer.createBot({
       host: host,
-      port: botInfo.port,
+      port: port,
       username: username,
-      version: false,
       auth: "offline",
+      version: false,
       connectTimeout: 30000
     });
 
-    bot.on("login", () => {
-      console.log("Minecraft login packet received.");
+    bot = newBot;
+
+    connectionTimer = setTimeout(() => {
+      if (bot === newBot && botInfo.status === "connecting") {
+        console.log("CONNECTION TIMEOUT: Bot did not spawn within 30 seconds.");
+
+        botInfo.status = "timeout";
+        botInfo.error = "Connection timeout after 30 seconds.";
+
+        try {
+          newBot.end();
+        } catch (_) {}
+
+        bot = null;
+      }
+    }, 30000);
+
+    newBot.on("login", () => {
+      console.log("LOGIN: Minecraft login received.");
     });
 
-    bot.once("spawn", () => {
+    newBot.once("spawn", () => {
+      clearConnectionTimer();
+
+      if (bot !== newBot) return;
+
       botInfo.status = "online";
 
       console.log(
-        `BOT ONLINE: ${botInfo.username}`
+        `ONLINE: ${username} joined ${host}:${port}`
       );
 
       console.log(
-        `PvP Mode: ${botInfo.mode}`
+        `MODE: ${mode} | TARGET: ${target || "none"}`
       );
-
-      console.log(
-        `Target: ${botInfo.target || "none"}`
-      );
-
-      startPvP();
     });
 
-    bot.on("message", (message) => {
+    newBot.on("message", (message) => {
       console.log(
         "SERVER:",
         message.toString()
       );
     });
 
-    bot.on("end", (reason) => {
+    newBot.on("kicked", (reason) => {
+      clearConnectionTimer();
+
       console.log(
-        "Bot disconnected:",
-        reason || "unknown"
-      );
-
-      if (pvpLoop) {
-        clearInterval(pvpLoop);
-        pvpLoop = null;
-      }
-
-      botInfo.status = "offline";
-      botInfo.error = String(reason || "");
-
-      bot = null;
-    });
-
-    bot.on("error", (error) => {
-      console.log(
-        "MINECRAFT ERROR:",
-        error
-      );
-
-      botInfo.status = "error";
-      botInfo.error =
-        error.message || String(error);
-    });
-
-    bot.on("kicked", (reason) => {
-      console.log(
-        "BOT KICKED:",
+        "KICKED:",
         reason
       );
 
-      botInfo.status = "kicked";
-      botInfo.error = String(reason);
+      if (bot === newBot) {
+        botInfo.status = "kicked";
+        botInfo.error = String(reason);
+      }
+    });
+
+    newBot.on("error", (error) => {
+      clearConnectionTimer();
+
+      console.log(
+        "MINECRAFT ERROR:",
+        error.message
+      );
+
+      if (bot === newBot) {
+        botInfo.status = "error";
+        botInfo.error = error.message;
+      }
+    });
+
+    newBot.on("end", (reason) => {
+      clearConnectionTimer();
+
+      console.log(
+        "DISCONNECTED:",
+        reason || "unknown"
+      );
+
+      if (bot === newBot) {
+        botInfo.status = "offline";
+        botInfo.error = String(reason || "");
+        bot = null;
+      }
     });
 
     return res.json({
       success: true,
       status: "connecting",
       username: username,
-      mode: botInfo.mode,
-      target: botInfo.target
+      server: host,
+      port: port,
+      mode: mode,
+      target: target
     });
 
   } catch (error) {
+    clearConnectionTimer();
+
     console.log(
       "START ERROR:",
-      error
+      error.message
     );
 
     bot = null;
@@ -258,9 +234,7 @@ app.post("/start", (req, res) => {
 });
 
 app.post("/stop", (req, res) => {
-  stopCurrentBot();
-
-  botInfo.status = "offline";
+  stopBot();
 
   return res.json({
     success: true,
