@@ -8,94 +8,165 @@ app.use(express.json());
 const PORT = process.env.PORT || 10000;
 
 let bot = null;
-let botStatus = "offline";
 
-let config = {
-  host: process.env.MC_HOST || "",
-  port: Number(process.env.MC_PORT || 25565),
-  username: process.env.BOT_USERNAME || "MaceBot"
+let botInfo = {
+  status: "offline",
+  host: "",
+  port: 25565,
+  username: ""
 };
 
-function startBot() {
+let reconnectTimer = null;
+
+function startBot(host, port, username) {
   if (bot) {
-    return;
+    return {
+      success: false,
+      message: "Bot is already running."
+    };
   }
 
-  if (!config.host) {
-    console.log("MC_HOST is not configured.");
-    return;
+  if (!host || !username) {
+    return {
+      success: false,
+      message: "Server IP and bot username are required."
+    };
   }
 
-  console.log("Starting Minecraft bot...");
+  botInfo.host = host;
+  botInfo.port = Number(port) || 25565;
+  botInfo.username = username;
+  botInfo.status = "connecting";
 
-  botStatus = "connecting";
+  console.log(
+    `Connecting ${username} to ${host}:${botInfo.port}`
+  );
 
   bot = mineflayer.createBot({
-    host: config.host,
-    port: config.port,
-    username: config.username,
+    host: botInfo.host,
+    port: botInfo.port,
+    username: botInfo.username,
     version: false
   });
 
   bot.once("spawn", () => {
-    botStatus = "online";
-    console.log("Bot joined Minecraft!");
+    botInfo.status = "online";
+
+    console.log(
+      `Bot ${botInfo.username} joined ${botInfo.host}:${botInfo.port}`
+    );
   });
 
   bot.on("end", () => {
-    botStatus = "offline";
-    bot = null;
     console.log("Bot disconnected.");
+
+    botInfo.status = "offline";
+    bot = null;
   });
 
-  bot.on("error", (err) => {
-    console.log("Minecraft error:", err.message);
+  bot.on("error", (error) => {
+    console.log("Minecraft error:", error.message);
+
+    botInfo.status = "error";
   });
 
   bot.on("kicked", (reason) => {
     console.log("Bot kicked:", reason);
+
+    botInfo.status = "kicked";
   });
+
+  return {
+    success: true,
+    status: botInfo.status
+  };
 }
+
+
+function stopBot() {
+  if (!bot) {
+    botInfo.status = "offline";
+
+    return {
+      success: true,
+      status: "offline"
+    };
+  }
+
+  try {
+    bot.quit("Stopped from website");
+  } catch (error) {
+    console.log(error.message);
+  }
+
+  bot = null;
+  botInfo.status = "offline";
+
+  return {
+    success: true,
+    status: "offline"
+  };
+}
+
+
+/* Homepage */
 
 app.get("/", (req, res) => {
   res.json({
     name: "MACE PvP BOT",
-    status: botStatus
+    status: botInfo.status
   });
 });
+
+
+/* Bot status */
 
 app.get("/status", (req, res) => {
   res.json({
-    status: botStatus,
-    username: config.username,
-    server: config.host || "Not configured",
-    port: config.port
+    status: botInfo.status,
+    username: botInfo.username,
+    server: botInfo.host,
+    port: botInfo.port
   });
 });
+
+
+/* Start bot */
 
 app.post("/start", (req, res) => {
-  startBot();
 
-  res.json({
-    success: true,
-    status: botStatus
-  });
+  const {
+    host,
+    port,
+    username
+  } = req.body;
+
+  const result = startBot(
+    host,
+    port,
+    username
+  );
+
+  res.json(result);
 });
+
+
+/* Stop bot */
 
 app.post("/stop", (req, res) => {
-  if (bot) {
-    bot.quit("Stopped from dashboard");
-    bot = null;
-  }
 
-  botStatus = "offline";
+  const result = stopBot();
 
-  res.json({
-    success: true,
-    status: botStatus
-  });
+  res.json(result);
 });
 
+
+/* Server */
+
 app.listen(PORT, () => {
-  console.log(`API running on port ${PORT}`);
+
+  console.log(
+    `MACE PvP BOT API running on port ${PORT}`
+  );
+
 });
