@@ -24,7 +24,8 @@ let botInfo = {
   status: "offline",
   host: "",
   port: 25565,
-  username: ""
+  username: "",
+  error: ""
 };
 
 app.get("/", (req, res) => {
@@ -39,7 +40,8 @@ app.get("/status", (req, res) => {
     status: botInfo.status,
     username: botInfo.username,
     server: botInfo.host,
-    port: botInfo.port
+    port: botInfo.port,
+    error: botInfo.error
   });
 });
 
@@ -64,6 +66,7 @@ app.post("/start", (req, res) => {
   botInfo.port = Number(port) || 25565;
   botInfo.username = username;
   botInfo.status = "connecting";
+  botInfo.error = "";
 
   console.log(
     `Connecting ${username} to ${host}:${botInfo.port}`
@@ -71,47 +74,64 @@ app.post("/start", (req, res) => {
 
   try {
     bot = mineflayer.createBot({
-      host: botInfo.host,
-      port: botInfo.port,
-      username: botInfo.username,
-      version: false
+      host: host,
+      port: Number(port) || 25565,
+      username: username,
+      version: false,
+      auth: "offline",
+      connectTimeout: 30000
+    });
+
+    bot.on("login", () => {
+      console.log("Minecraft login packet received.");
     });
 
     bot.once("spawn", () => {
       botInfo.status = "online";
 
       console.log(
-        `Bot ${botInfo.username} joined ${botInfo.host}:${botInfo.port}`
+        `BOT ONLINE: ${botInfo.username} joined ${botInfo.host}:${botInfo.port}`
       );
     });
 
-    bot.on("end", () => {
-      console.log("Bot disconnected.");
+    bot.on("message", (message) => {
+      console.log("SERVER:", message.toString());
+    });
+
+    bot.on("end", (reason) => {
+      console.log("Bot disconnected:", reason || "unknown");
 
       botInfo.status = "offline";
+      botInfo.error = String(reason || "");
+
       bot = null;
     });
 
     bot.on("error", (error) => {
-      console.log("Minecraft error:", error.message);
+      console.log("MINECRAFT ERROR:", error);
+
       botInfo.status = "error";
+      botInfo.error = error.message || String(error);
     });
 
     bot.on("kicked", (reason) => {
-      console.log("Bot kicked:", reason);
+      console.log("BOT KICKED:", reason);
+
       botInfo.status = "kicked";
+      botInfo.error = String(reason);
     });
 
     return res.json({
       success: true,
-      status: botInfo.status
+      status: "connecting"
     });
 
   } catch (error) {
-    console.log("Start error:", error.message);
+    console.log("START ERROR:", error);
 
     bot = null;
     botInfo.status = "error";
+    botInfo.error = error.message;
 
     return res.json({
       success: false,
@@ -140,7 +160,7 @@ app.post("/stop", (req, res) => {
   bot = null;
   botInfo.status = "offline";
 
-  res.json({
+  return res.json({
     success: true,
     status: "offline"
   });
