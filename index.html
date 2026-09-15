@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MACE PvP BOT</title>
+
+  <title>موقع آيزن | MACE PvP BOT</title>
 
   <style>
     body {
@@ -18,6 +19,18 @@
       max-width: 500px;
       margin: auto;
       padding: 25px;
+    }
+
+    .aizen {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      color: #aaa;
+      margin-bottom: 25px;
+      font-size: 15px;
     }
 
     h1 {
@@ -82,6 +95,7 @@
       height: 180px;
       overflow-y: auto;
       text-align: left;
+      direction: ltr;
       font-family: monospace;
       white-space: pre-wrap;
     }
@@ -92,6 +106,9 @@
 
 <div class="container">
 
+  <div class="aizen">⚔️ موقع آيزن</div>
+  <div class="subtitle">AIZEN BOT</div>
+
   <h1>⚔️ MACE PvP BOT</h1>
 
   <div class="status">
@@ -99,11 +116,22 @@
     <span id="status" class="offline">OFFLINE</span>
   </div>
 
-  <input id="host" placeholder="Server IP">
+  <input
+    id="host"
+    placeholder="Server IP"
+  >
 
-  <input id="port" type="number" placeholder="Port" value="25565">
+  <input
+    id="port"
+    type="number"
+    placeholder="Port"
+    value="25565"
+  >
 
-  <input id="username" placeholder="Bot Username">
+  <input
+    id="username"
+    placeholder="Bot Username"
+  >
 
   <select id="mode">
     <option value="sword">Sword PvP</option>
@@ -112,13 +140,22 @@
     <option value="crystal">Crystal PvP</option>
   </select>
 
-  <input id="target" placeholder="Target Username (اختياري)">
+  <input
+    id="target"
+    placeholder="Target Username (اختياري)"
+  >
 
-  <button class="start" onclick="startBot()">▶️ START BOT</button>
+  <button class="start" onclick="startBot()">
+    ▶️ START BOT
+  </button>
 
-  <button class="stop" onclick="stopBot()">⛔ STOP BOT</button>
+  <button class="stop" onclick="stopBot()">
+    ⛔ STOP BOT
+  </button>
 
-  <button onclick="checkStatus()">🔄 CHECK STATUS</button>
+  <button onclick="checkStatus()">
+    🔄 CHECK STATUS
+  </button>
 
   <div class="console" id="console">
 جاهز...
@@ -128,24 +165,45 @@
 
 <script>
 
-const BACKEND_URL = "https://bot-website-lwyb.onrender.com";
+const BACKEND_URL = "http://87.106.100.187:6818";
 
-const statusElement = document.getElementById("status");
-const consoleElement = document.getElementById("console");
+const statusElement =
+  document.getElementById("status");
+
+const consoleElement =
+  document.getElementById("console");
 
 function log(message) {
-  consoleElement.textContent += "\n" + message;
-  consoleElement.scrollTop = consoleElement.scrollHeight;
+  consoleElement.textContent +=
+    "\n" + message;
+
+  consoleElement.scrollTop =
+    consoleElement.scrollHeight;
 }
 
 async function startBot() {
 
-  const host = document.getElementById("host").value.trim();
-  const port = document.getElementById("port").value;
-  const username = document.getElementById("username").value.trim();
+  const host =
+    document.getElementById("host").value.trim();
+
+  const port =
+    document.getElementById("port").value;
+
+  const username =
+    document.getElementById("username").value.trim();
+
+  const mode =
+    document.getElementById("mode").value;
+
+  const target =
+    document.getElementById("target").value.trim();
 
   if (!host || !username) {
-    log("❌ اكتب Server IP و Bot Username");
+
+    log(
+      "❌ اكتب Server IP و Bot Username"
+    );
+
     return;
   }
 
@@ -153,53 +211,84 @@ async function startBot() {
 
   try {
 
-    const response = await fetch(`${BACKEND_URL}/start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        host: host,
-        port: Number(port),
-        username: username
-      })
-    });
+    const response = await fetch(
+      `${BACKEND_URL}/start`,
+      {
+        method: "POST",
 
-    const data = await response.json();
+        headers: {
+          "Content-Type": "application/json"
+        },
 
-    log("📡 " + JSON.stringify(data));
+        body: JSON.stringify({
+
+          host: host,
+
+          port: Number(port),
+
+          username: username,
+
+          mode: mode,
+
+          target: target
+
+        })
+      }
+    );
+
+    const data =
+      await response.json();
+
+    log(
+      "📡 " +
+      JSON.stringify(data)
+    );
 
     checkStatus();
 
   } catch (error) {
 
-    log("❌ فشل الاتصال بالـBackend");
-    log(error.message);
+    log(
+      "❌ فشل الاتصال بالـBackend"
+    );
 
+    log(error.message);
   }
 }
 
 async function stopBot() {
 
-  log("⛔ جاري إيقاف البوت...");
+  log(
+    "⛔ جاري إيقاف البوت..."
+  );
 
   try {
 
-    const response = await fetch(`${BACKEND_URL}/stop`, {
-      method: "POST"
-    });
+    const response =
+      await fetch(
+        `${BACKEND_URL}/stop`,
+        {
+          method: "POST"
+        }
+      );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
-    log("📡 " + JSON.stringify(data));
+    log(
+      "📡 " +
+      JSON.stringify(data)
+    );
 
     checkStatus();
 
   } catch (error) {
 
-    log("❌ فشل الاتصال بالـBackend");
-    log(error.message);
+    log(
+      "❌ فشل الاتصال بالـBackend"
+    );
 
+    log(error.message);
   }
 }
 
@@ -207,33 +296,48 @@ async function checkStatus() {
 
   try {
 
-    const response = await fetch(`${BACKEND_URL}/status`);
+    const response =
+      await fetch(
+        `${BACKEND_URL}/status`
+      );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (data.status === "online") {
 
-      statusElement.textContent = "ONLINE";
-      statusElement.className = "online";
+      statusElement.textContent =
+        "ONLINE";
+
+      statusElement.className =
+        "online";
 
     } else {
 
-      statusElement.textContent = data.status.toUpperCase();
-      statusElement.className = "offline";
+      statusElement.textContent =
+        data.status.toUpperCase();
 
+      statusElement.className =
+        "offline";
     }
 
     log(
-      `Status: ${data.status} | ${data.username || "-"} | ${data.server || "-"}:${data.port}`
+      `Status: ${data.status} | ` +
+      `${data.username || "-"} | ` +
+      `${data.server || "-"}:${data.port}`
     );
 
   } catch (error) {
 
-    statusElement.textContent = "ERROR";
-    statusElement.className = "offline";
+    statusElement.textContent =
+      "ERROR";
 
-    log("❌ Backend غير متاح");
+    statusElement.className =
+      "offline";
 
+    log(
+      "❌ Backend غير متاح"
+    );
   }
 }
 
